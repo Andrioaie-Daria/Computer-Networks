@@ -1,0 +1,14 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+C:/Users/daria/Documents/study/facultate/anul 2/Semestrul 1/Retele de calculatoare/Lab/Lab2/H1_commandExecution_c_server/main.cpp
+WinSock2.h
+-
+stdint.h
+-
+

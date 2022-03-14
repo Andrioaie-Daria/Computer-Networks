@@ -1,0 +1,191 @@
+**** PACKET TRACER CONFIGURATION COMMANDS AND STUFF ****
+
+<...> - mandatory field
+[...] - optional field
+
+
+// Enter CLI as admin/privileged mode
+enable
+
+
+// Show a router's current running configuration - details about routing, DHCP, NAT, RIP (works in admin mode)
+show running-config
+
+
+// [USE FREQUENTLY] Make the router's current running configuration load on device startup (works in admin mode)
+copy running-config startup-config
+
+
+// Enter main config mode (works in admin mode)
+config t
+
+
+// Show routing table (works in main config mode)
+show ip route
+
+
+// Enter interface config mode (works in main config mode - can also be done by just selecting an interface in the GUI, if present)
+interface <InterfaceName> (e.g. FastEthernet 0/0)
+
+
+
+**STATIC ROUTING**
+
+// Tell a router to redirect a packet with a destination address in a certain network range via another network address, 
+// when its destination network address is not directly connected to the router - can also be done via GUI if present, fields in same order
+
+ip route <PacketDestNetworkRangeAddress> (e.g. 193.231.20.0) <PacketDestNetworkRangeMask> (e.g. 255.255.255.248) 
+         <RedirectingAddress aka NextHop> (e.g. 193.226.40.5)
+
+
+
+**DHCP**
+
+// Declare DHCP pool (works in main config mode - also enters DHCP config mode for this pool)
+ip dhcp pool <NameOfPool> (e.g. lan0)
+
+
+// Set the network range the pool is defined on
+network <NetworkAddress> (e.g. 192.168.0.0) <SubnetMask> (e.g. 255.255.255.0)
+
+
+// Set the default gateway address that should be passed to the clients in the network
+default-router <DefaultGatewayAddress> (e.g. 192.168.0.1)
+
+
+// Set the DNS server address that should be passed to the clients in the network
+dns-server <DNSServerAddress> (e.g. 192.168.0.3)
+
+
+// Add any IPs from the network range that you do not want to be served to PCs into the excluded range
+// you exclude the router
+ip dhcp excluded-address <ExcludedIP/ExclusionRangeStart> (e.g. 192.168.0.1) [ExclusionRangeEnd] (e.g. 192.168.0.6)
+
+
+// Exit DHCP config mode, back to main config mode
+exit
+
+
+
+**NAT**
+// For every interface, specify whether it's inside or outside
+// Specify that an interface is of type "inside" - the source IPs of the packets received by the router through this interface must be translated
+
+interface <InterfaceName> (e.g. FastEthernet 0/0)
+ip nat inside
+exit                                               // Exit interface config mode, back to main config mode
+
+
+// Specify that an interface is of type "outside" - the packets sent by the router through this interface will have their source IP translated to this interface's address
+
+interface <InterfaceName> (e.g. Serial 0/0/0)
+ip nat outside
+exit                                              // Exit interface config mode, back to main config mode
+
+
+// Define an access list with the addresses from the inside that can or must not be NAT-ed.
+
+# thease are simple one liner lists
+access-list <ListName> permit 192.168.0.1 0.0.0.31
+
+--- OR --- 
+ 
+ip access-list extended <ListName> (e.g. nat-lan0)
+
+--- optional, you you want some network range to not be NAT-ed
+deny ip <SourceNetworkRangeAddress> (e.g. 192.168.0.0) <SourceSubnetMaskComplementOf1> (e.g. 0.0.0.255 - for 255.255.255.0) 
+        <DestNetworkAddress DestSubnetMaskComplementOf1> (e.g. 193.231.20.0 0.0.0.255)
+
+permit ip <SourceNetworkRangeAddress> (e.g. 192.168.0.0) <SourceSubnetMaskComplementOf1> (e.g. 0.0.0.255 - for 255.255.255.0) 
+          <[DestNetworkAddress DestSubnetMaskComplementOf1]/[any]> (e.g. 193.231.20.0 0.0.0.255)
+
+#choose an interface that will provide the public IP on packet sending and you do not need to define a pool !:
+ip nat inside source list <ListName> (e.g. nat-lan0) interface <InterfaceName> (e.g. Serial0/0/0) overload
+
+
+**RIP**
+
+// Enable RIP on router - also enters RIP config mode
+route rip
+
+// Set RIP to version 2
+version 2
+
+// Specify the network ranges adjacent to the router that the RIP algorithm must take into account
+
+network <RemoteNetworkRangeAddress> (e.g. 192.168.0.0)
+network <RemoteNetworkRangeAddress> (e.g. 10.0.0.0)
+network <RemoteNetworkRangeAddress> (e.g. 193.226.40.0)
+...
+
+// Specify the router's interfaces that shouldn't be used as a possible outbound route by the RIP algorithm
+passive-interface <InterfaceName> (e.g. Serial 0/0/0)
+
+// Enable propagation of the default routes (e.g. set by ip route 0.0.0.0 0.0.0.0 193.226.40.0) to all other organization routers
+default-information originate
+
+// Since we use CIDR addressing, aggregation of routing networks that use RIP does not always perform correctly
+no auto-summary
+
+
+** FTP service**
+
+1. From the PC’s command prompt, FTP the server using the server IP address by typing:
+ ftp  192.168.1.2 
+
+
+2. Provide the username "cisco" and password "cisco", which are the defaults for ftp login.
+
+
+3. Create a file in the PC, then upload it to the server using FTP.
+
+To do this, open the Text Editor in the PC, create a file and give it your name of choice.
+
+Type any text in the editor then save your file. e.g. myFile.txt.
+
+
+4. Now upload the file from the PC to the server using  FTP. (An FTP connection has to be started first. 
+But this is what we’ve done in step 2)
+
+So to do an FTP upload, we’ll type:
+
+ put MyFile.txt 
+
+
+5. Once file upload is successful, go to the Server FTP directory to verify if the file 
+sent has been received.
+To do this, go to Server->Services->FTP. Here look for MyFile.txt sent from the PC.
+
+
+** DNS and WEB Servers**
+
+1. You need to create 2 servers, one named DNS, and another one named WEB.
+
+2. Setup their individual static ips and for each one, in the field DNS Server,
+ specify the ip of the DNS Server.
+
+3. (optional) For the WEB Server, in the HTTP directory, edit the index.html file so that
+ it displays the name of the site that you want.
+
+4. (mandatory) For the DNS Server, in the DNS directory, add the ip address of the WEB Server 
+and the name that you want to be associated with it.
+
+5. Finally, in the Web Browser of any PC, you can search the url by the name, instead of the ip
+and it will display the content of the index.html file.
+  e.g.: facebook.com, instead of 192.168.100.101
+
+
+
+** What is ARP? **
+
+Address Resolution Protocol (ARP) is a protocol that connects an IP address (network layer) to a fixed physical machine address (MAC address - data link layer), in a local-area network (LAN). 
+
+This mapping is important because the lengths of the IP and MAC addresses differ (IP is 32-bits long, while MAC is 48-bits long), so the needed translation is performed through ARP. 
+
+
+** What is a gateway? **
+
+A gateway, which is usually a router, serves as an entry and exit point in a computer network, thus being able to send data back and forth through it.
+
+
+broadcast: network OR the complement of the mask

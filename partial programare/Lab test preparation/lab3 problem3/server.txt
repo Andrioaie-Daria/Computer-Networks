@@ -1,0 +1,184 @@
+// Implement the Chat server example (see the link bellow) using UDP and TCP
+//  –only this time each client should contact the server just for registration.
+//  All communication happens directly between the peers (clients) without passing through the server.
+//  Each client maintains an endpoint (TCP/UDP) with the server just for learning the arrival/departure of other clients.
+//  You create a mesh architecture where all clients connect directly between each others.
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+
+
+fd_set master;   // master file descriptor list
+fd_set read_fds; // temp file descriptor list for select()
+struct sockaddr_in server_address;     // server address
+struct sockaddr_in client_address; // client address
+int fd_max;        // maximum file descriptor number
+int listener;     // listening socket descriptor
+int client_fd;        // newly accept()ed socket descriptor
+char buffer[256], temporary_buffer[256];    // buffer for client data
+int number_of_bytes, ret;
+int yes = 1;        // for setsockopt() SO_REUSEADDR, below
+int address_length;
+int i, j, current, int_port, client_count=0;
+int client_sockets[12], client_ports[12];
+
+struct sockaddr_in getSocketName(int socket, char* source){
+    struct sockaddr_in address;
+    int address_length = sizeof(address);
+
+    memset(&address, 0, sizeof(address));
+    if(strcmp(source, "local") == 0){
+        if(getsockname(socket, (struct sockaddr*) &address, (socklen_t*)&address_length) < 0)
+            perror("getsockname");
+    }
+    else
+        if(strcmp(source, "remote") == 0){
+            if(getpeername(socket, (struct sockaddr*) &address, (socklen_t*)&address_length) < 0)
+                perror("getperrname");
+        }
+
+    return address;
+}
+
+int getPort(int socket, char* source){
+    struct sockaddr_in address;
+    address = getSocketName(socket, source);
+    return address.sin_port;
+}
+
+char* getIPAddress(int socket, char* source){
+    struct sockaddr_in address;
+    address = getSocketName(socket, source);
+    return inet_ntoa(address.sin_addr);
+}
+
+void sendAllString(char* buffer){
+    for(j=4; j<12; j++)
+        if(client_sockets[j] != 0 && j!=client_fd){
+            uint32_t l = strlen(buffer);
+            l = htonl(l);
+            if(send(j, (char*)&l, sizeof(l), 0) == -1)
+                perror("error on sending new data length");
+            if(send(j, buffer, strlen(buffer) + 1, 0) == -1)
+                perror("error on sending new data");
+        }
+}
+
+void sendAllInteger(int integer){
+    for(j=3; j<12; j++)
+        if(client_sockets[j] != 0 && j!= client_fd){
+            if(send(j, &integer, sizeof(integer) + 1, 0) == -1)
+                perror("error on sending int");
+        }
+}
+
+
+int main(int argc, char** argv) {
+    if (argc < 2 ) {
+        printf("Usage:\n%s <portno>\n",argv[0]);
+        exit(1);
+    }
+
+    int_port = atoi(argv[1]);
+
+    listener = socket(AF_INET, SOCK_STREAM, 0);
+    if(listener == -1)
+        perror("error on creating socket");
+
+    FD_ZERO(&read_fds);
+    FD_ZERO(&master);
+
+    if (setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int) ) == -1) {
+        perror("setsockopt:");
+        exit(1);
+    }
+
+    memset(&server_address, 0, sizeof(server_address));
+    server_address.sin_port = htons(int_port);
+    server_address.sin_family = AF_INET;
+    server_address.sin_addr.s_addr = INADDR_ANY;
+
+    if(bind(listener, (struct sockaddr *)&server_address, sizeof(server_address)) == -1)
+        perror("Error on bind");
+
+    if (listen(listener, 10) == -1) {
+        perror("listen");
+        exit(1);
+    }
+
+    fd_max = listener;
+    FD_SET(listener, &master);
+
+    while(1){
+        read_fds = master;
+        if(select(fd_max+ 1, &read_fds, NULL, NULL, NULL) == -1){
+            perror("Error on select");
+        }
+        for(i = 0; i <= fd_max; i++){
+            if(FD_ISSET(i, &read_fds)) /// we got some activity
+            {
+                current = i;
+                if(i == listener)  /// we got a new client
+                {
+
+                    address_length = sizeof(client_address);
+                    if ((client_fd = accept(listener, (struct sockaddr *)&client_address, (socklen_t*)&address_length)) == -1){
+                        perror("accept");
+                    }
+                    else{
+                        /// add it to the list of fd_s
+                        FD_SET(client_fd, &master);
+                        if(client_fd > fd_max)
+                            fd_max = client_fd;
+
+                        printf("selectserver: new connection from %s on socket %d\n", getIPAddress(client_fd, "remote"), client_fd);
+                        int client_port;
+                        if(recv(client_fd, &client_port, sizeof(client_port), 0) < 0)
+                            perror("Cannot receive port from client");
+
+
+                        client_ports[client_fd] = client_port;
+                        client_port = ntohl(client_port);
+                        printf("new client port: %d\n", client_port);
+                        client_port = htonl(client_port);
+                        /// send it to all other clients
+                        sendAllString("new");
+                        sendAllInteger(client_port);
+
+                        client_sockets[client_fd] = client_fd;
+                    }
+                }
+                else{    /// a client tries to disconnect forcibly
+                    client_fd = i;
+                    if ((number_of_bytes = recv(i, buffer, sizeof(buffer), 0)) <= 0) {
+                        // got error or connection closed by client
+                        if (number_of_bytes == 0) {
+                            // connection closed
+                            printf("<selectserver>: client %s forcibly hung up\n", getIPAddress(i, "remote"));
+                        }
+                        else
+                            perror("recv");
+
+                    }
+                    /// announce the others
+                    sendAllString("left");
+                    sendAllInteger(client_ports[i]);
+                    client_count--;
+                    close(i); // bye!
+                    FD_CLR(i, &master); // remove from master set
+                    client_sockets[i] = 0;
+
+
+                }
+            }
+        }
+    }
+}
+

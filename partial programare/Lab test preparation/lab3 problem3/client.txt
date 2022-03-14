@@ -1,0 +1,204 @@
+// Implement the Chat server example (see the link bellow) using UDP and TCP 
+//  –only this time each client should contact the server just for registration. 
+//  All communication happens directly between the peers (clients) without passing through the server. 
+//  Each client maintains an endpoint (TCP/UDP) with the server just for learning the arrival/departure of other clients. 
+//  You create a mesh architecture where all clients connect directly between each others.
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <pthread.h>
+
+fd_set master;   // master file descriptor list
+fd_set read_fds; // temp file descriptor list for select()
+struct sockaddr_in server_address;     // server address
+struct sockaddr_in peer_address;
+int server_communication_socket, peer_udp_socket;
+int int_port, peer_port;
+int fd_max, ret;
+int other_clients_ports[9];
+int number_of_bytes, peers_count=0;
+char buffer[256], temporary_buffer[256];
+
+//void* server_listening(void* arg){
+//    int server_socket = *(int*)arg;
+//    char buffer[10];
+//    while(1){
+//        if(recv(server_socket, buffer, 10, 0) < 0 )
+//            perror("error on receive");
+//
+//        if(recv)
+//    }
+//
+//    return NULL;
+//}
+
+struct sockaddr_in getSocketName(int socket, char* source){
+    struct sockaddr_in address;
+    int address_length = sizeof(address);
+
+    memset(&address, 0, sizeof(address));
+    if(strcmp(source, "local") == 0){
+        if(getsockname(socket, (struct sockaddr*) &address, (socklen_t*)&address_length) < 0)
+            perror("getsockname");
+    }
+    else
+    if(strcmp(source, "remote") == 0){
+        if(getpeername(socket, (struct sockaddr*) &address, (socklen_t*)&address_length) < 0)
+            perror("getperrname");
+    }
+
+    return address;
+}
+
+int getPort(int socket, char* source){
+    struct sockaddr_in address;
+    address = getSocketName(socket, source);
+    return address.sin_port;
+}
+
+char* getIPAddress(int socket, char* source){
+    struct sockaddr_in address;
+    address = getSocketName(socket, source);
+    return inet_ntoa(address.sin_addr);
+}
+
+void delete_peer(int port){
+
+    for(int client = 0; client<peers_count; client++){
+        if(other_clients_ports[client] == port){
+            for(int other_client = client; other_client < peers_count-1; other_client ++){
+                other_clients_ports[other_client] = other_clients_ports[other_client+1];
+            }
+            peers_count--;
+            printf("Peer on port %d disconnected\n");
+        }
+    }
+}
+
+void send_to_all_other_peers(char* buffer){
+    int socket_address_length = sizeof(struct sockaddr_in);
+
+    for(int peer = 0; peer < peers_count; peer++){
+        peer_address.sin_port = htons(other_clients_ports[peer]);
+
+        if(sendto(peer_udp_socket, buffer, strlen(buffer),0, (const sockaddr*)&peer_address, socket_address_length)  < 0)
+            perror("Sendto");
+    }
+}
+
+void read_from_peer(){
+
+}
+
+int main(int argc, char** argv) {
+    if (argc < 2) {
+        printf("Usage:\n%s <portno>\n", argv[0]);
+        exit(1);
+    }
+
+    server_communication_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_communication_socket == -1)
+        perror("error on creating socket");
+
+    int_port = atoi(argv[1]);
+
+    memset(&server_address, 0, sizeof(server_address));
+    server_address.sin_port = htons(int_port);
+    server_address.sin_family = AF_INET;
+    server_address.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    if (connect(server_communication_socket, (struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
+        perror("connection to server failed");
+    }
+
+    peer_udp_socket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (peer_udp_socket < 0)
+        perror("socket");
+
+    memset(&peer_address, 0, sizeof(peer_address));
+    peer_address.sin_addr.s_addr = INADDR_ANY;
+    peer_address.sin_family = AF_INET;
+
+    //printf("%d     %d\n", sizeof(struct sockaddr_in), sizeof (struct sockaddr));
+    sendto(peer_udp_socket, "abcd", 4, 0, (const sockaddr*)&server_address, sizeof(struct sockaddr_in));
+
+    int my_port = getPort(peer_udp_socket, "local");
+    char* my_address = getIPAddress(peer_udp_socket, "local");
+    printf("%d\n", my_port);
+    printf("%s\n", my_address);
+
+    my_port = htonl(my_port);
+    if(send(server_communication_socket, &my_port, sizeof(my_port), 0) < 0)
+        perror("Error on sending port");
+
+    my_port = ntohl(my_port);
+
+    printf("Successfully connected to server.\n");
+    FD_SET(0, &master);
+    FD_SET(server_communication_socket, &master);
+    FD_SET(peer_udp_socket, &master);
+    if(peer_udp_socket > server_communication_socket)
+        fd_max = peer_udp_socket;
+    else
+        fd_max = server_communication_socket;
+
+    while(1){
+        read_fds = master;
+        if(select(fd_max+ 1, &read_fds, NULL, NULL, NULL) == -1){
+            perror("Error on select");
+        }
+        for(int i = 0; i <= fd_max; i++)
+            if(FD_ISSET(i, &read_fds)){
+                if(i == server_communication_socket) {  /// new info from the server
+                    //printf("New info from server\n");
+                    uint32_t length;
+
+                    /// read the type of operation from server
+                    ret = read(server_communication_socket, &length, sizeof(length));
+                    length = ntohl(length);
+                    if(ret == 0){
+                        printf("Server has closed connection... closing...\n");
+                        exit(2);
+                    }
+
+                    //if(ret != 4)
+                    //    perror("Error on reading length");
+                    number_of_bytes = read(server_communication_socket, temporary_buffer, length+1);
+
+
+                    /// read the port
+                    ret = read(server_communication_socket, &peer_port, sizeof(peer_port));
+                    peer_port = ntohl(peer_port);
+                    if( ret != 4)
+                        perror("Error on reading port");
+
+                    if(strcmp(temporary_buffer, "new") == 0){   /// add a new peer
+                        printf("I have a new peer, %d\n", peer_port);
+                        other_clients_ports[peers_count++] = peer_port;
+
+                    }
+                    else
+                        if(strcmp(temporary_buffer, "left") == 0){    /// delete a peer
+                            delete_peer(peer_port);
+
+                        }
+                }
+                if ( FD_ISSET(0, &read_fds) ) {
+                    number_of_bytes = read(0, buffer, sizeof(buffer)-1);
+                    send_to_all_other_peers(buffer);
+                }
+                if(FD_ISSET(peer_udp_socket, &read_fds)){
+                    read_from_peer();
+                }
+            }
+        printf("");
+    }
+
+}

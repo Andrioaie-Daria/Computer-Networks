@@ -1,0 +1,18 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+C:/Users/daria/Documents/study/facultate/anul 2/Semestrul 1/Retele de calculatoare/Lab/Lab5/UDP client/client.cpp
+iostream
+-
+WinSock2.h
+-
+strings.h
+C:/Users/daria/Documents/study/facultate/anul 2/Semestrul 1/Retele de calculatoare/Lab/Lab5/UDP client/strings.h
+cstdint
+-
+

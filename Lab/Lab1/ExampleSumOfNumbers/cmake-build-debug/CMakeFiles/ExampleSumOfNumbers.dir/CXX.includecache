@@ -1,0 +1,32 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+C:/Users/daria/Documents/study/facultate/anul 2/Semestrul 1/Retele de calculatoare/Lab/Lab1/ExampleSumOfNumbers/main.cpp
+stdio.h
+-
+sys/types.h
+-
+sys/socket.h
+-
+netinet/in.h
+-
+netinet/ip.h
+-
+string.h
+-
+arpa/inet.h
+-
+unistd.h
+-
+errno.h
+-
+WinSock2.h
+-
+stdint.h
+-
+
